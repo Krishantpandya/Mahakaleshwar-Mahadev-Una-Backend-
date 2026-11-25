@@ -7,6 +7,7 @@ import { database } from "./database.js";
 import { healthRoutes } from "./routes/health.routes.js";
 import { photoRoutes } from "./routes/photos.routes.js";
 import { announcementRoutes } from "./routes/announcements.routes.js";
+import { pushSubscriptionRoutes } from "./routes/push-subscriptions.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -34,6 +35,7 @@ export function buildApp() {
   app.register(healthRoutes, { prefix: "/api/v1" });
   app.register(photoRoutes, { prefix: "/api/v1" });
   app.register(announcementRoutes, { prefix: "/api/v1" });
+  app.register(pushSubscriptionRoutes, { prefix: "/api/v1" });
 
   app.addHook("onClose", async () => {
     await database?.end();
