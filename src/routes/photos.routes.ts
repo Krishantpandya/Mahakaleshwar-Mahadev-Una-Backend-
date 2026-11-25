@@ -76,6 +76,6 @@ export const photoRoutes: FastifyPluginAsync = async (app) => {
       [photoId.data]
     );
 
-    return reply.code(200).send({ liked: true, likeCount: count.rows[0].count });
+    return reply.code(200).send({ liked: true, likeCount: count.rows[0]?.count ?? 0 });
   });
 };
