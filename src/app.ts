@@ -3,7 +3,10 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { env } from "./config/env.js";
+import { database } from "./database.js";
 import { healthRoutes } from "./routes/health.routes.js";
+import { photoRoutes } from "./routes/photos.routes.js";
+import { announcementRoutes } from "./routes/announcements.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -29,6 +32,12 @@ export function buildApp() {
   });
 
   app.register(healthRoutes, { prefix: "/api/v1" });
+  app.register(photoRoutes, { prefix: "/api/v1" });
+  app.register(announcementRoutes, { prefix: "/api/v1" });
+
+  app.addHook("onClose", async () => {
+    await database?.end();
+  });
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "Request failed");
