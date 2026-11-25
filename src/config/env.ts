@@ -5,7 +5,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   HOST: z.string().default("0.0.0.0"),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-  CORS_ORIGINS: z.string().default("http://localhost:3000,http://localhost:5173")
+  CORS_ORIGINS: z.string().default("http://localhost:3000,http://localhost:5173"),
+  DATABASE_URL: z.string().url().optional()
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -19,6 +20,7 @@ export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   host: parsed.data.HOST,
   port: parsed.data.PORT,
+  databaseUrl: parsed.data.DATABASE_URL,
   corsOrigins: parsed.data.CORS_ORIGINS.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean)
