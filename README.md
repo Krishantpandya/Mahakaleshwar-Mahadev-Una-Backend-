@@ -33,12 +33,17 @@ All endpoints are under `/api/v1`.
 | GET | `/photos` | List published photos; supports `from`, `to`, `limit`, `offset` |
 | POST | `/photos/:photoId/likes` | Add an idempotent guest like using a client-generated `visitorId` UUID |
 | GET | `/announcements` | List published announcements; supports `limit`, `offset` |
+| PUT | `/push-subscriptions` | Register/update a browser push subscription for one or both notification channels |
 
 The content endpoints require `DATABASE_URL`. If it is not configured, they return HTTP 503 rather than pretending the database is available.
 
 ### Guest likes
 
 Send JSON `{ "visitorId": "<uuid>" }` to `POST /api/v1/photos/:photoId/likes`. The database enforces one like per visitor UUID per photo. A visitor UUID is an opaque browser-generated identifier, not a visitor account. Like removal is not implemented because that behavior has not been decided.
+
+### Browser notification subscriptions
+
+Send a browser Push API subscription as JSON with `endpoint`, `keys.p256dh`, `keys.auth`, and a `channels` array containing `photos`, `announcements`, or both to `PUT /api/v1/push-subscriptions`. The endpoint updates the subscription and replaces its channel selections atomically. This stores subscriptions only; push delivery, VAPID key management, retries, and automatic publish triggers are not implemented yet.
 
 ## Database
 
