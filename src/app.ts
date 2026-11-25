@@ -40,15 +40,17 @@ export function buildApp() {
   });
 
   app.setErrorHandler((error, request, reply) => {
-    request.log.error({ err: error }, "Request failed");
+    const normalizedError = error instanceof Error ? error : new Error(String(error));
+    const errorStatus = (normalizedError as Error & { statusCode?: number }).statusCode;
+    request.log.error({ err: normalizedError }, "Request failed");
 
-    const statusCode = error.statusCode && error.statusCode >= 400 && error.statusCode < 500
-      ? error.statusCode
+    const statusCode = errorStatus && errorStatus >= 400 && errorStatus < 500
+      ? errorStatus
       : 500;
 
     return reply.status(statusCode).send({
-      error: statusCode === 500 ? "Internal Server Error" : error.name,
-      message: statusCode === 500 ? "An unexpected error occurred." : error.message
+      error: statusCode === 500 ? "Internal Server Error" : normalizedError.name,
+      message: statusCode === 500 ? "An unexpected error occurred." : normalizedError.message
     });
   });
 
