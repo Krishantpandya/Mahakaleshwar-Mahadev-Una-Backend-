@@ -2,70 +2,66 @@
 
 TypeScript API service for the Mankaleshwar Mahadev Temple website.
 
-## Current foundation
+## Stack
 
-- Fastify 5 HTTP server
-- Strict TypeScript configuration
-- Environment validation with Zod
-- Security headers with Helmet
-- Explicit CORS allowlist
-- Global rate limiting
-- Structured logging with sensitive header redaction
-- Versioned health endpoint: `GET /api/v1/health`
-- Graceful shutdown on SIGINT and SIGTERM
-
-## Requirements
-
-- Node.js 22 or newer
-- npm
+- Node.js 22+
+- Fastify 5 and TypeScript
+- PostgreSQL 17 hosted on Neon
+- Zod request and environment validation
 
 ## Run locally
 
 1. Copy `.env.example` to `.env`.
-2. Install dependencies with `npm install`.
-3. Start development mode with `npm run dev`.
+2. Set `DATABASE_URL` to a PostgreSQL connection string (use a pooled Neon URL for API traffic).
+3. Install dependencies with `npm install`.
+4. Run `npm run dev`.
 
-## Available commands
+## Commands
 
 - `npm run dev` — development server with reload
 - `npm run typecheck` — TypeScript type checking
 - `npm run build` — compile to `dist/`
 - `npm start` — run compiled server
 
-The API listens on port 4000 by default.
+## API v1
 
-## Scope decisions intentionally deferred
+All endpoints are under `/api/v1`.
 
-The repository requirements leave several product and provider decisions open. This foundation does not invent those decisions. Database selection and schema, admin authentication and permissions, comment moderation and abuse controls, notification delivery, and media storage integration must be designed before their corresponding features are implemented.
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Process health check |
+| GET | `/photos` | List published photos; supports `from`, `to`, `limit`, `offset` |
+| POST | `/photos/:photoId/likes` | Add an idempotent guest like using a client-generated `visitorId` UUID |
+| GET | `/announcements` | List published announcements; supports `limit`, `offset` |
 
-## API
+The content endpoints require `DATABASE_URL`. If it is not configured, they return HTTP 503 rather than pretending the database is available.
 
-### Health
+### Guest likes
 
-`GET /api/v1/health`
-
-Returns the service status and timestamp. This is a process-level health check; it does not yet verify database, storage, or notification-provider connectivity.
+Send JSON `{ "visitorId": "<uuid>" }` to `POST /api/v1/photos/:photoId/likes`. The database enforces one like per visitor UUID per photo. A visitor UUID is an opaque browser-generated identifier, not a visitor account. Like removal is not implemented because that behavior has not been decided.
 
 ## Database
 
-The initial PostgreSQL schema is in `database/migrations/001_initial_schema.sql`.
-It defines admins, photos, guest photo likes/comments, announcements, browser push
-subscriptions, and the independent `photos` / `announcements` subscription channels.
+The initial PostgreSQL schema is in `database/migrations/001_initial_schema.sql`. It has been applied to the Neon project `mankaleshwar-mahadev` (PostgreSQL 17, AWS Singapore region) and verified to contain these tables:
 
-### Apply the initial migration
+- `admins`
+- `photos`
+- `photo_likes`
+- `photo_comments`
+- `announcements`
+- `push_subscriptions`
+- `push_subscription_channels`
 
-Create an empty PostgreSQL 15+ database, then apply the migration using your
-PostgreSQL SQL client or deployment workflow. The migration is intended to be
-applied once to an empty database. Future schema changes must be added as new,
-ordered SQL migration files; do not modify a migration after it has been applied.
+The database connection string is a secret and is not committed to this repository. Configure it as `DATABASE_URL` in the backend hosting environment before deploying the API.
 
-No database credentials or connection strings are committed to this repository.
+## Not implemented yet
 
-### Schema boundaries
+- Admin authentication, roles, and permissions (requirements need confirmation)
+- Admin photo/announcement create, edit, publish, and delete APIs
+- Media upload/storage provider integration
+- Guest comments (moderation and abuse rules are not decided)
+- Browser push subscription endpoints and delivery provider integration
+- Automatic notifications after publishing
+- Automated tests and production deployment configuration
 
-- Media records store generic storage keys and media URLs. No storage vendor is selected.
-- Guest likes and comments use opaque client-generated visitor UUIDs; no visitor account is created.
-- Comment moderation/display rules remain undecided and must be settled before public comment publishing is enabled.
-- Admin roles, login/session strategy, and password reset policy remain to be designed.
-- Push subscription data follows the browser Push API shape; delivery provider and retry/expiry policies remain undecided.
-- Like removal behavior and subscription lifecycle rules are handled by future API behavior, not assumed by this schema.
+Do not expose admin write endpoints until authentication and authorization are implemented.
