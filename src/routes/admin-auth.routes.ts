@@ -64,7 +64,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
     const expiresAt = new Date(Date.now() + env.adminSessionDays * 24 * 60 * 60 * 1000);
     await database.query("INSERT INTO admin_sessions (admin_id, token_hash, expires_at) VALUES ($1, $2, $3)", [admin.id, hashToken(token), expiresAt]);
     reply.setCookie(env.adminSessionCookie, token, {
-      path: "/", httpOnly: true, secure: env.nodeEnv === "production", sameSite: "strict",
+      path: "/", httpOnly: true, secure: env.nodeEnv === "production", sameSite: env.nodeEnv === "production" ? "none" : "lax",
       expires: expiresAt
     });
     return reply.send({ authenticated: true, admin: { id: admin.id, email: admin.email }, expiresAt });
