@@ -73,7 +73,7 @@ export const photoRoutes: FastifyPluginAsync = async (app) => {
     const result = await database.query(sql, values);
 
     const data = result.rows.map((photo) => {
-      const { storage_key: storageKey, media_url: existingMediaUrl, ...publicPhoto } = photo;
+      const { storage_key: storageKey, media_url: existingMediaUrl, original_filename: _originalFilename, ...publicPhoto } = photo;
       return {
         ...publicPhoto,
         media_url: storageKey
