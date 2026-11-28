@@ -14,18 +14,19 @@ export function isB2Configured(): boolean {
 }
 
 function getClient(): S3Client {
-  if (!env.b2) {
+  const config = env.b2;
+  if (!config) {
     throw new Error("Backblaze B2 storage is not configured");
   }
 
   if (!client) {
     client = new S3Client({
-      endpoint: env.b2.endpoint.replace(/\\/+$/, ""),
-      region: env.b2.region,
+      endpoint: config.endpoint.replace(/\\/+$/, ""),
+      region: config.region,
       forcePathStyle: true,
       credentials: {
-        accessKeyId: env.b2.keyId,
-        secretAccessKey: env.b2.applicationKey
+        accessKeyId: config.keyId,
+        secretAccessKey: config.applicationKey
       }
     });
   }
@@ -34,10 +35,11 @@ function getClient(): S3Client {
 }
 
 function getBucketName(): string {
-  if (!env.b2) {
+  const config = env.b2;
+  if (!config) {
     throw new Error("Backblaze B2 storage is not configured");
   }
-  return env.b2.bucketName;
+  return config.bucketName;
 }
 
 function safeDispositionFilename(filename: string): string {
@@ -70,16 +72,21 @@ export async function createSignedMediaUrl(
   filename: string,
   disposition: "inline" | "attachment" = "inline"
 ): Promise<string> {
+  const config = env.b2;
+  if (!config) {
+    throw new Error("Backblaze B2 storage is not configured");
+  }
+
   const safeFilename = safeDispositionFilename(filename);
   const command = new GetObjectCommand({
-    Bucket: getBucketName(),
+    Bucket: config.bucketName,
     Key: key,
     ResponseContentDisposition: `${disposition}; filename="${safeFilename}"`,
     ResponseCacheControl: "private, max-age=300"
   });
 
   return getSignedUrl(getClient(), command, {
-    expiresIn: env.b2.signedUrlTtlSeconds
+    expiresIn: config.signedUrlTtlSeconds
   });
 }
 
