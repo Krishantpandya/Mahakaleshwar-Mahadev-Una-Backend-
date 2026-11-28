@@ -21,7 +21,7 @@ function getClient(): S3Client {
 
   if (!client) {
     client = new S3Client({
-      endpoint: config.endpoint.replace(/\\/+$/, ""),
+      endpoint: config.endpoint.replace(/\/+$/, ""),
       region: config.region,
       forcePathStyle: true,
       credentials: {
