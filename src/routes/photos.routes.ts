@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { database } from "../database.js";
+import { createSignedMediaUrl, isB2Configured } from "../storage/b2.js";
 
 const listQuerySchema = z.object({
   from: z.string().date().optional(),
@@ -40,12 +41,54 @@ export const photoRoutes: FastifyPluginAsync = async (app) => {
     values.push(limit, offset);
     const limitIndex = values.length - 1;
     const offsetIndex = values.length;
-    const sql = "SELECT id, media_url, mime_type, file_size_bytes, caption, taken_at, published_at " +
+    const sql = "SELECT id, storage_key, original_filename, mime_type, file_size_bytes, caption, taken_at, published_at " +
       "FROM photos WHERE " + filters.join(" AND ") +
       " ORDER BY published_at DESC, id DESC LIMIT $" + limitIndex + " OFFSET $" + offsetIndex;
     const result = await database.query(sql, values);
 
-    return { data: result.rows, pagination: { limit, offset, returned: result.rowCount ?? 0 } };
+    if (result.rows.length > 0 && !isB2Configured()) {
+      return reply.code(503).send({ error: "Backblaze B2 storage is not configured" });
+    }
+
+    const data = await Promise.all(result.rows.map(async (photo) => {
+      const { storage_key: storageKey, original_filename: originalFilename, ...publicPhoto } = photo;
+      return {
+        ...publicPhoto,
+        media_url: await createSignedMediaUrl(storageKey, originalFilename || "photo", "inline")
+      };
+    }));
+
+    return { data, pagination: { limit, offset, returned: result.rowCount ?? 0 } };
+  });
+
+  app.get<{ Params: { photoId: string } }>("/photos/:photoId/download", async (request, reply) => {
+    if (!database) {
+      return reply.code(503).send({ error: "Database is not configured" });
+    }
+
+    const photoId = uuidSchema.safeParse(request.params.photoId);
+    if (!photoId.success) {
+      return reply.code(400).send({ error: "A valid photoId UUID is required" });
+    }
+
+    const result = await database.query(
+      "SELECT storage_key, original_filename FROM photos WHERE id = $1 AND published_at IS NOT NULL",
+      [photoId.data]
+    );
+    const photo = result.rows[0] as { storage_key: string; original_filename: string | null } | undefined;
+    if (!photo) {
+      return reply.code(404).send({ error: "Photo not found" });
+    }
+    if (!isB2Configured()) {
+      return reply.code(503).send({ error: "Backblaze B2 storage is not configured" });
+    }
+
+    const downloadUrl = await createSignedMediaUrl(
+      photo.storage_key,
+      photo.original_filename || "photo",
+      "attachment"
+    );
+    return reply.redirect(downloadUrl, 302);
   });
 
   app.post<{ Params: { photoId: string } }>("/photos/:photoId/likes", async (request, reply) => {
