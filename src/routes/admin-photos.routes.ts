@@ -4,12 +4,7 @@ import { z } from "zod";
 import { database } from "../database.js";
 import { env } from "../config/env.js";
 import { requireAdmin } from "./admin-auth.routes.js";
-import {
-  createSignedMediaUrl,
-  deleteMediaObject,
-  isB2Configured,
-  uploadMediaObject
-} from "../storage/b2.js";
+import { deleteMediaObject, uploadMediaObject } from "../storage/railway-volume.js";
 
 const allowedImageTypes = new Set([
   "image/jpeg",
@@ -29,7 +24,7 @@ function safeObjectFilename(filename: string): string {
   const safe = basename
     .normalize("NFKC")
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
-    .replace(/^\\.+/, "")
+    .replace(/^\.+/, "")
     .slice(0, 120);
   return safe || "photo";
 }
@@ -57,9 +52,6 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
   }, async (request, reply) => {
     if (!database) {
       return reply.code(503).send({ error: "Database is not configured" });
-    }
-    if (!isB2Configured()) {
-      return reply.code(503).send({ error: "Backblaze B2 storage is not configured" });
     }
     if (!request.isMultipart()) {
       return reply.code(415).send({ error: "Upload must use multipart/form-data" });
@@ -101,7 +93,7 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
     if (!imageBuffer || imageBuffer.byteLength === 0) {
       return reply.code(400).send({ error: "A non-empty image file is required" });
     }
-    if (imageBuffer.byteLength > env.b2MaxUploadBytes) {
+    if (imageBuffer.byteLength > env.maxUploadBytes) {
       return reply.code(413).send({ error: "Image exceeds the upload size limit" });
     }
     if (!hasValidImageSignature(imageBuffer, contentType)) {
@@ -122,9 +114,7 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
 
     await uploadMediaObject({
       key: storageKey,
-      body: imageBuffer,
-      contentType,
-      originalFilename
+      body: imageBuffer
     });
 
     try {
@@ -149,14 +139,14 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(201).send({
         data: {
           ...photo,
-          media_url: await createSignedMediaUrl(storageKey, originalFilename, "inline")
+          media_url: `${request.protocol}://${request.hostname}/api/v1/photos/${photoId}/media`
         }
       });
     } catch (error) {
       try {
         await deleteMediaObject(storageKey);
       } catch (cleanupError) {
-        request.log.error({ err: cleanupError, storageKey }, "Unable to clean up an uploaded object after database failure");
+        request.log.error({ err: cleanupError, storageKey }, "Unable to clean up an uploaded file after database failure");
       }
       throw error;
     }
