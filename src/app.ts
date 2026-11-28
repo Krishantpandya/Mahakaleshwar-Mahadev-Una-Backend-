@@ -20,7 +20,7 @@ export function buildApp() {
       level: env.nodeEnv === "production" ? "info" : "debug",
       redact: { paths: ["req.headers.authorization", "req.headers.cookie", "res.headers.set-cookie"], censor: "[REDACTED]" }
     },
-    trustProxy: false
+    trustProxy: true
   });
 
   app.register(helmet);
@@ -29,7 +29,7 @@ export function buildApp() {
   app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
   app.register(multipart, {
     limits: {
-      fileSize: env.b2MaxUploadBytes,
+      fileSize: env.maxUploadBytes,
       files: 1,
       fields: 3
     }
