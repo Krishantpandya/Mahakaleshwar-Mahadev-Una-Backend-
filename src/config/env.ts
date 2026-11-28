@@ -16,6 +16,8 @@ const envSchema = z.object({
   ADMIN_SESSION_DAYS: z.coerce.number().int().min(1).max(30).default(7),
   ADMIN_EMAIL: z.preprocess((value) => value === "" ? undefined : value, z.string().email().optional()),
   ADMIN_PASSWORD: z.preprocess((value) => value === "" ? undefined : value, z.string().min(12).optional()),
+  MEDIA_STORAGE_DIR: optionalText,
+  MAX_UPLOAD_BYTES: z.coerce.number().int().min(1024).max(50 * 1024 * 1024).default(20 * 1024 * 1024),
   B2_BUCKET_NAME: optionalText,
   B2_REGION: optionalText,
   B2_ENDPOINT: z.preprocess(
@@ -24,8 +26,7 @@ const envSchema = z.object({
   ),
   B2_KEY_ID: optionalText,
   B2_APPLICATION_KEY: optionalText,
-  B2_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
-  B2_MAX_UPLOAD_BYTES: z.coerce.number().int().min(1024).max(50 * 1024 * 1024).default(20 * 1024 * 1024)
+  B2_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900)
 }).superRefine((value, context) => {
   if (value.NODE_ENV === "production" && !value.DATABASE_URL) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["DATABASE_URL"], message: "DATABASE_URL is required in production" });
@@ -78,6 +79,8 @@ export const env = {
   adminSessionDays: parsed.data.ADMIN_SESSION_DAYS,
   adminEmail: parsed.data.ADMIN_EMAIL?.trim().toLowerCase(),
   adminPassword: parsed.data.ADMIN_PASSWORD,
+  mediaStorageDir: parsed.data.MEDIA_STORAGE_DIR || (parsed.data.NODE_ENV === "production" ? "/data" : "./data"),
+  maxUploadBytes: parsed.data.MAX_UPLOAD_BYTES,
   b2: b2Configured ? {
     bucketName: parsed.data.B2_BUCKET_NAME!,
     region: parsed.data.B2_REGION!,
@@ -85,6 +88,5 @@ export const env = {
     keyId: parsed.data.B2_KEY_ID!,
     applicationKey: parsed.data.B2_APPLICATION_KEY!,
     signedUrlTtlSeconds: parsed.data.B2_SIGNED_URL_TTL_SECONDS
-  } : null,
-  b2MaxUploadBytes: parsed.data.B2_MAX_UPLOAD_BYTES
+  } : null
 };
