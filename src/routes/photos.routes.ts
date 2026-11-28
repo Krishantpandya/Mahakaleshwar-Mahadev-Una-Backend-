@@ -1,5 +1,4 @@
-import { createReadStream } from "node:fs";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { database } from "../database.js";
 import { openMediaObject } from "../storage/railway-volume.js";
@@ -21,7 +20,7 @@ function safeDispositionFilename(filename: string): string {
 }
 
 async function sendPhotoFile(
-  reply: Parameters<FastifyPluginAsync>[0] extends never ? never : any,
+  reply: FastifyReply,
   storageKey: string,
   mimeType: string,
   filename: string,
@@ -74,7 +73,7 @@ export const photoRoutes: FastifyPluginAsync = async (app) => {
     const result = await database.query(sql, values);
 
     const data = result.rows.map((photo) => {
-      const { storage_key: storageKey, media_url: existingMediaUrl, original_filename: originalFilename, ...publicPhoto } = photo;
+      const { storage_key: storageKey, media_url: existingMediaUrl, ...publicPhoto } = photo;
       return {
         ...publicPhoto,
         media_url: storageKey
