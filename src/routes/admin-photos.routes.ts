@@ -29,18 +29,40 @@ function safeObjectFilename(filename: string): string {
   const safe = basename
     .normalize("NFKC")
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
-    .replace(/^\.+/, "")
+    .replace(/^\\.+/, "")
     .slice(0, 120);
   return safe || "photo";
 }
 
+function hasValidImageSignature(buffer: Buffer, contentType: string): boolean {
+  switch (contentType) {
+    case "image/jpeg":
+      return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    case "image/png":
+      return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    case "image/webp":
+      return buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
+    case "image/avif":
+      return buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp" &&
+        (buffer.includes(Buffer.from("avif")) || buffer.includes(Buffer.from("avis")));
+    default:
+      return false;
+  }
+}
+
 export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
-  app.post("/", { preHandler: requireAdmin }, async (request, reply) => {
+  app.post("/", {
+    preHandler: requireAdmin,
+    config: { rateLimit: { max: 10, timeWindow: "1 hour" } }
+  }, async (request, reply) => {
     if (!database) {
       return reply.code(503).send({ error: "Database is not configured" });
     }
     if (!isB2Configured()) {
       return reply.code(503).send({ error: "Backblaze B2 storage is not configured" });
+    }
+    if (!request.isMultipart()) {
+      return reply.code(415).send({ error: "Upload must use multipart/form-data" });
     }
 
     let imageBuffer: Buffer | null = null;
@@ -76,11 +98,14 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
       throw error;
     }
 
-    if (!imageBuffer) {
-      return reply.code(400).send({ error: "An image file is required" });
+    if (!imageBuffer || imageBuffer.byteLength === 0) {
+      return reply.code(400).send({ error: "A non-empty image file is required" });
     }
     if (imageBuffer.byteLength > env.b2MaxUploadBytes) {
       return reply.code(413).send({ error: "Image exceeds the upload size limit" });
+    }
+    if (!hasValidImageSignature(imageBuffer, contentType)) {
+      return reply.code(415).send({ error: "The uploaded file content does not match its image type" });
     }
 
     const parsedFields = uploadFieldsSchema.safeParse(fields);
@@ -93,7 +118,7 @@ export const adminPhotoRoutes: FastifyPluginAsync = async (app) => {
 
     const photoId = randomUUID();
     const storedFilename = safeObjectFilename(originalFilename);
-    const storageKey = `photos/${photoId}/${storedFilename}`;
+    const storageKey = `media/photos/${photoId}/${storedFilename}`;
 
     await uploadMediaObject({
       key: storageKey,
