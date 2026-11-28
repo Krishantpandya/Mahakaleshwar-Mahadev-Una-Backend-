@@ -20,7 +20,7 @@ function getClient(): S3Client {
 
   if (!client) {
     client = new S3Client({
-      endpoint: env.b2.endpoint,
+      endpoint: env.b2.endpoint.replace(/\\/+$/, ""),
       region: env.b2.region,
       forcePathStyle: true,
       credentials: {
@@ -43,8 +43,8 @@ function getBucketName(): string {
 function safeDispositionFilename(filename: string): string {
   const basename = filename.split(/[\\/]/).pop() || "photo";
   return basename
-    .replace(/[\r\n"]/g, "")
-    .replace(/[^\x20-\x7E]/g, "_")
+    .replace(/[\\r\\n"]/g, "")
+    .replace(/[^\\x20-\\x7E]/g, "_")
     .slice(0, 150) || "photo";
 }
 
@@ -61,10 +61,7 @@ export async function uploadMediaObject(input: {
     ContentLength: input.body.byteLength,
     ContentType: input.contentType,
     ContentDisposition: `inline; filename="${safeDispositionFilename(input.originalFilename)}"`,
-    CacheControl: "private, max-age=300",
-    Metadata: {
-      originalfilename: input.originalFilename.slice(0, 200)
-    }
+    CacheControl: "private, max-age=300"
   }));
 }
 
@@ -77,7 +74,6 @@ export async function createSignedMediaUrl(
   const command = new GetObjectCommand({
     Bucket: getBucketName(),
     Key: key,
-    ResponseContentType: "application/octet-stream",
     ResponseContentDisposition: `${disposition}; filename="${safeFilename}"`,
     ResponseCacheControl: "private, max-age=300"
   });
